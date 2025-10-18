@@ -1,11 +1,11 @@
-# ===== DIFFERENCES-IN-DIFFERENCES ANALYSIS =====
+# DIFFERENCES-IN-DIFFERENCES ANALYSIS 
 
 library(tidyverse)
 library(fixest)
 library(modelsummary)
 library(lubridate)
 
-# ===== STEP 1: LOAD AND PREPARE COMBINED DATA FOR ANALYSIS =====
+# LOAD AND PREPARE COMBINED DATA FOR ANALYSIS 
 
 combined_data <- read_csv("data/processed/ca_tx_combined.csv")
 
@@ -27,7 +27,7 @@ analysis_data <- combined_data %>%
   # Filter NA values
   filter(!is.na(total_permits), !is.na(date))
 
-# ===== STEP 2: RUNNING DID REGRESSION =====
+# RUNNING DID REGRESSION 
 
 did_total <- feols(log_total_permits ~ treated_post | county_id + time_id, 
                    data = analysis_data, cluster = ~county_id)
@@ -71,8 +71,9 @@ cat("Std Error:  ", sprintf("%.1f", levels_se), "\n")
 
 
 
+# Plots 
 
-# ===== 1. CLASSIC DiD PLOT (Pre/Post Means) =====
+#  1. CLASSIC DiD PLOT (Pre/Post Means) 
 
 # Calculate pre/post averages by state
 did_summary <- analysis_data %>%
@@ -111,7 +112,7 @@ classic_did <- did_summary %>%
 print(classic_did)
 
 
-# ===== 2. TIME SERIES WITH TREATMENT LINE =====
+#  TIME SERIES WITH TREATMENT LINE 
 
 monthly_trends <- analysis_data %>%
   group_by(date, state) %>%
@@ -144,7 +145,7 @@ timeseries_did <- monthly_trends %>%
 print(timeseries_did)
 
 
-# ===== 3. COUNTERFACTUAL PLOT =====
+#  COUNTERFACTUAL PLOT 
 
 # Calculate what CA would have looked like without treatment
 # Using the pre-period trend and TX's post-period change
@@ -220,9 +221,8 @@ counterfactual_plot <- counterfactual_data %>%
 
 print(counterfactual_plot)
 
-# ===== SAVE REGRESSION RESULTS =====
+# Saving results
 
-# Extract coefficients and create results table
 permits_results <- data.frame(
   outcome = c("Total Permits", "Single Family", "Multifamily"),
   coefficient = c(
@@ -247,10 +247,9 @@ permits_results <- data.frame(
   )
 )
 
-# Save results as CSV
 write_csv(permits_results, "data/processed/permits_did_results.csv")
 
-# Save robustness check results
+
 robustness_results <- data.frame(
   specification = c("Main Model", "With State Trends", "Levels"),
   coefficient = c(
@@ -267,9 +266,7 @@ robustness_results <- data.frame(
 
 write_csv(robustness_results, "data/processed/robustness_check_results.csv")
 
-# ===== SAVE PROFESSIONAL RESULTS TABLE =====
 
-# Create HTML table
 modelsummary(list("Total" = did_total, "Single Family" = did_single, "Multifamily" = did_multi),
              output = "output/permits_results_table.html",
              title = "Effects of California Solar Mandate on Building Permits")
@@ -278,12 +275,10 @@ modelsummary(list("Total" = did_total, "Single Family" = did_single, "Multifamil
 modelsummary(list("Total" = did_total, "Single Family" = did_single, "Multifamily" = did_multi),
              output = "output/permits_results_table.csv")
 
-# ===== SAVE PLOTS =====
 
 ggsave("output/classic_did_plot.png", classic_did, width = 10, height = 6)
 ggsave("output/timeseries_did_plot.png", timeseries_did, width = 12, height = 6)
 ggsave("output/counterfactual_plot.png", counterfactual_plot, width = 10, height = 6)
 
-# ===== SAVE ANALYSIS DATA =====
 
 write_csv(analysis_data, "data/processed/did_analysis_data.csv")
