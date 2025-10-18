@@ -5,7 +5,7 @@ library(tidyverse)
 library(fixest)
 library(lubridate)
 
-# ===== STEP 1: DOWNLOAD AND CLEAN ZILLOW DATA =====
+#  DOWNLOAD AND CLEAN ZILLOW DATA 
 
 # Zillow Home Value Index URL (county-level, all homes)
 zillow_url <- "https://files.zillowstatic.com/research/public_csvs/zhvi/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
@@ -13,7 +13,6 @@ zillow_url <- "https://files.zillowstatic.com/research/public_csvs/zhvi/County_z
 # Download the data
 download.file(zillow_url, "data/raw/zillow_county_data.csv")
 
-# Your target counties (same as permits analysis)
 target_counties <- c(
   # California
   "Los Angeles County", "San Diego County", "Orange County", 
@@ -55,7 +54,7 @@ zillow_clean <- zillow_raw %>%
     county_name = region_name
   )
 
-# ===== STEP 3: CREATE DiD VARIABLES =====
+#  CREATE DiD VARIABLES 
 
 zillow_analysis <- zillow_clean %>%
   mutate(
@@ -74,7 +73,7 @@ zillow_analysis <- zillow_clean %>%
   # Ensure complete data
   filter(!is.na(log_home_price))
 
-# ===== STEP 4: RUN DiD REGRESSION  =====
+# RUN DiD REGRESSION  
 
 # Run DiD regression
 did_prices <- feols(log_home_price ~ treated_post | county_id + time_id,
@@ -83,7 +82,7 @@ did_prices <- feols(log_home_price ~ treated_post | county_id + time_id,
 
 etable(did_prices)
 
-# ===== STEP 5: ROBUSTNESS CHECK  =====
+# ROBUSTNESS CHECK  
 
 # Add state-specific time trends
 zillow_analysis <- zillow_analysis %>%
@@ -97,11 +96,7 @@ trend_coef <- coef(did_prices_trend)["treated_post"]
 trend_se <- se(did_prices_trend)["treated_post"]
 trend_percent <- (exp(trend_coef) - 1) * 100
 
-cat("With state-specific trends:\n")
-cat("Coefficient:", sprintf("%.4f", trend_coef), "\n")
-cat("% Effect:   ", sprintf("%.1f%%", trend_percent), "\n")
-
-# ===== STEP 6: VISUALIZATION =====
+# VISUALIZATION 
   
 # Time series plot
 price_trends <- zillow_analysis %>%
@@ -124,16 +119,14 @@ price_plot <- price_trends %>%
 
 print(price_plot)
 
-# ===== STEP 7: COMPARISON WITH PERMITS RESULTS =====
+#  COMPARISON WITH PERMITS RESULTS 
 
-# Calculate price_percent from your regression results
 price_coef <- coef(did_prices)["treated_post"]
 price_pval <- pvalue(did_prices)["treated_post"]
 price_percent <- (exp(price_coef) - 1) * 100
 
-# Update these with your actual permits results
-permits_effect <- -19.9  # Your permits percentage effect
-permits_significant <- FALSE  # Your permits significance
+permits_effect <- -19.9  
+permits_significant <- FALSE  
 
 
 # Create comparison
@@ -159,9 +152,6 @@ comparison_plot <- comparison_data %>%
 print(comparison_plot)
 
 
-# ===== SAVE ZILLOW ANALYSIS RESULTS =====
-
-# Extract home price results
 price_results <- data.frame(
   outcome = "Home Prices",
   coefficient = coef(did_prices)["treated_post"],
@@ -171,10 +161,8 @@ price_results <- data.frame(
   significant = pvalue(did_prices)["treated_post"] < 0.05
 )
 
-# Save home price results
 write_csv(price_results, "data/processed/home_price_did_results.csv")
 
-# Save robustness check for prices
 price_robustness <- data.frame(
   specification = c("Main Model", "With State Trends"),
   coefficient = c(
@@ -193,20 +181,19 @@ price_robustness <- data.frame(
 
 write_csv(price_robustness, "data/processed/price_robustness_results.csv")
 
-# ===== SAVE COMBINED PERMITS + PRICES RESULTS =====
+# SAVE COMBINED PERMITS + PRICES RESULTS 
 
 # Combine permits and price results
 combined_results <- data.frame(
   outcome = c("Building Permits", "Home Prices"),
-  coefficient = c(-0.2225, coef(did_prices)["treated_post"]),  # Update with your actual permits coefficient
+  coefficient = c(-0.2225, coef(did_prices)["treated_post"]),  
   percent_effect = c(permits_effect, price_percent),
-  p_value = c(0.16, price_pval),  # Update with your actual permits p-value
+  p_value = c(0.16, price_pval),  
   significant = c(permits_significant, price_pval < 0.05)
 )
 
 write_csv(combined_results, "data/processed/combined_permits_prices_results.csv")
 
-# ===== SAVE PROFESSIONAL TABLES =====
 
 # HTML table for home prices
 modelsummary(did_prices,
@@ -217,17 +204,9 @@ modelsummary(did_prices,
 modelsummary(did_prices,
              output = "output/home_price_results_table.csv")
 
-# Combined table (you'll need to load permits results)
-# modelsummary(list("Building Permits" = did_total, "Home Prices" = did_prices),
-#              output = "output/combined_results_table.html",
-#              title = "California Solar Mandate: Effects on Housing Market")
-
-# ===== SAVE PLOTS =====
 
 ggsave("output/home_price_trends.png", price_plot, width = 10, height = 6)
 ggsave("output/permits_vs_prices_comparison.png", comparison_plot, width = 8, height = 6)
-
-# ===== SAVE ANALYSIS DATASETS =====
 
 write_csv(zillow_analysis, "data/processed/home_price_analysis_data.csv")
 write_csv(comparison_data, "data/processed/permits_vs_prices_comparison.csv")
@@ -235,7 +214,6 @@ write_csv(comparison_data, "data/processed/permits_vs_prices_comparison.csv")
 
 dir.create("figures", showWarnings = FALSE)
 
-# Copy all your plots to figures folder
 file.copy("output/permits_vs_prices_comparison.png", "figures/")
 file.copy("output/parallel_trends_check.png", "figures/")
 file.copy("output/timeseries_did_plot.png", "figures/")
@@ -243,4 +221,3 @@ file.copy("output/home_price_trends.png", "figures/")
 file.copy("output/classic_did_plot.png", "figures/")
 file.copy("output/counterfactual_plot.png", "figures/")
 
-cat("✅ All figures copied to figures/ folder\n")
