@@ -1,15 +1,12 @@
-# ===== PREPARING AND PROCESSING COUNTY DATA FOR ANALYSIS =====
+# PREPARING AND PROCESSING COUNTY DATA FOR ANALYSIS 
 
-# ===== STEP 1: MERGING COUNTY CSV FILES FOR CA =====
+#  MERGING COUNTY CSV FILES FOR CA 
 
 library(tidyverse)
 library(janitor)
 library(ggplot2)
 
-# Create folders if needed
 dir.create("data/processed", recursive = TRUE, showWarnings = FALSE)
-
-# List all CSV files in data/raw/
 csv_files <- list.files("data/raw/", pattern = "\\.csv$", full.names = TRUE)
 
 if (length(csv_files) == 0) {
@@ -23,12 +20,9 @@ all_data <- map_dfr(csv_files, function(file) {
   
   cat("Reading:", basename(file), "\n")
   
-  # Read the CSV - it's already in long format!
   data <- read_csv(file, show_col_types = FALSE) %>%
     clean_names() %>%
-    # Add file name as county identifier
     mutate(county_file = basename(file)) %>%
-    # Clean up the series names to match what we want
     mutate(
       permit_type = case_when(
         str_detect(series, "Total") ~ "total_permits",
@@ -37,17 +31,15 @@ all_data <- map_dfr(csv_files, function(file) {
         TRUE ~ "other"
       )
     ) %>%
-    # Keep only the columns we need
     select(county_file, location, year, month, permit_type, permits)
   
   return(data)
 })
 
-# Check the result
 print(head(all_data))
 print(unique(all_data$permit_type))
 
-# Basic cleaning - handle duplicates
+
 ca_final_data <- all_data %>%
   # Filter to main permit types
   filter(permit_type %in% c("total_permits", "single_family", "multifamily")) %>%
@@ -70,16 +62,9 @@ ca_final_data <- all_data %>%
 ca_final_data <- ca_final_data %>%
   mutate(date = ymd(paste(year, month, "01")))
 
-# Save the California data
 write_csv(ca_final_data, "data/processed/ca_permits_final.csv")
 
-# Data check 
-
-cat("Counties:", n_distinct(ca_final_data$county_name), "\n")
-cat("Years:", min(ca_final_data$year), "to", max(ca_final_data$year), "\n")
-cat("Total rows:", nrow(ca_final_data), "\n")
-
-# ===== SUMMARY STATISTICS AND VISUALIZATIONS FOR CA DATA =====
+#  SUMMARY STATISTICS AND VISUALIZATIONS FOR CA DATA 
 
 ca_summary <- final_data %>%
   group_by(county_name) %>%
@@ -109,9 +94,8 @@ ca_plot <- ca_final_data %>%
 print(ca_plot)
 
 
-# ===== STEP 2: MERGING COUNTY CSV FILES FOR TX =====
+# MERGING COUNTY CSV FILES FOR TX 
 
-# List Texas CSV files
 tx_csv_files <- list.files("data/raw/", pattern = "^tx_.*\\.csv$", full.names = TRUE)
 
 # Process Texas data (exact same as CA)
@@ -154,7 +138,7 @@ tx_final_data <- tx_final_data %>%
 # Save the Texas data
 write_csv(tx_final_data, "data/processed/tx_permits_final.csv")
 
-# ===== SUMMARY STATISTICS AND VISUALIZATIONS FOR TX DATA =====
+#  SUMMARY STATISTICS AND VISUALIZATIONS FOR TX DATA 
 
 tx_summary <- tx_final_data %>%
   group_by(county_name) %>%
@@ -188,15 +172,13 @@ tx_plot <- tx_final_data %>%
 print(tx_plot)
 
 
-# ===== STEP 3: COMBINING AND STANDARDIZING CA AND TX DATASETS =====
+#  COMBINING AND STANDARDIZING CA AND TX DATASETS 
 
-# LOADING DATASETS
 ca_data <- read_csv("data/processed/ca_permits_final.csv")
 tx_data <- read_csv("data/processed/tx_permits_final.csv")
 
-# COMBINING DATASETS
+# Standardizing datasets
 
-# Make sure both datasets have the same structure
 ca_clean <- ca_data %>%
   mutate(
     state = "California",
@@ -205,7 +187,6 @@ ca_clean <- ca_data %>%
     treated_post = treated * post,
     date = ymd(paste(year, month, "01"))
   ) %>%
-  # Make sure we have consistent column names
   select(county_name, state, year, month, date, treated, post, treated_post,
          total_permits, single_family, multifamily)
 
@@ -217,7 +198,6 @@ tx_clean <- tx_data %>%
     treated_post = treated * post,
     date = ymd(paste(year, month, "01"))
   ) %>%
-  # Make sure we have consistent column names
   select(county_name, state, year, month, date, treated, post, treated_post,
          total_permits, single_family, multifamily)
 
@@ -225,10 +205,9 @@ combined_data <- bind_rows(ca_clean, tx_clean) %>%
   filter(!is.na(date), year >= 2018, year <= 2022) %>%
   arrange(state, county_name, date)
 
-# Save combined dataset
 write_csv(combined_data, "data/processed/ca_tx_combined.csv")
 
-# ===== STEP 4: PRELIMINARY COMPARITIVE VISUALIZATIONS =====
+# PRELIMINARY COMPARATIVE VISUALIZATIONS 
 
 # Overall comparison (aggregated)
 comparison_total <- combined_data %>%
@@ -254,7 +233,7 @@ comparison_total <- combined_data %>%
 
 print(comparison_total)
 
-# ===== STEP 5: PARALLEL TRENDS CHECK =====
+# PARALLEL TRENDS CHECK 
 
 # Pre-treatment period only (2018-2019)
 parallel_trends <- combined_data %>%
@@ -279,14 +258,12 @@ print(parallel_trends)
 
 ggsave("figures/parallel_trends_check.png", parallel_trends, width = 10, height = 6)
 
+# Highlighting control vs treatment on map
 
-
-# Create US map highlighting CA and TX
 library(ggplot2)
 library(maps)
 library(dplyr)
 
-# Get US state data
 us_states <- map_data("state")
 
 # Create treatment indicator
@@ -322,7 +299,4 @@ us_map <- ggplot(us_states, aes(x = long, y = lat, group = group, fill = treatme
   ) +
   coord_fixed(1.3)
 
-# Save the map
 ggsave("figures/treatment_control_map.png", us_map, width = 10, height = 6)
-
-cat("✅ US map saved to figures/treatment_control_map.png\n")
